@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
@@ -6,6 +7,7 @@ from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import Agent, AgentSession, ChatContext, ChatMessage, StopResponse
 from livekit.plugins import deepgram, groq, silero
+from scorer import REPORT_DIR, print_report, score, transcript_to_text
 
 load_dotenv()
 
@@ -119,6 +121,20 @@ async def entrypoint(ctx: agents.JobContext):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(session.history.to_dict(), f, indent=2)
         print(f"Transcript saved to {path}")
+
+        try:
+            text = transcript_to_text(path)
+            if text.count("Candidate:") < 2:
+                print("Interview too short to score (need at least 2 answers).")
+                return
+            print("Scoring your interview, please wait...")
+            report = await asyncio.to_thread(score, text)
+            print_report(report)
+            out = REPORT_DIR / f"report_{stamp}.json"
+            out.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+            print(f"Report saved to {out}")
+        except Exception as e:
+            print(f"Could not score this interview: {e}")
 
     ctx.add_shutdown_callback(save_transcript)
 

@@ -105,7 +105,7 @@ def score(transcript: str) -> InterviewReport:
         except ValidationError as e:
             last_error = e
             print(f"Attempt {attempt + 1}: the AI's reply was not valid, retrying...")
-    sys.exit(f"Could not get a valid report: {last_error}")
+        raise RuntimeError(f"Could not get a valid report: {last_error}")
 
 
 def print_report(r: InterviewReport) -> None:
