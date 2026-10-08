@@ -3,8 +3,11 @@ name = "voice-interview-coach"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi>=0.143.0",
     "livekit-agents[deepgram,groq,silero]~=1.5",
+    "livekit-api>=1.2.1",
     "openai>=2.54.0",
     "pydantic>=2.13.5",
     "python-dotenv>=1.2.4",
+    "uvicorn>=0.54.0",
 ]

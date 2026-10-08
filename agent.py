@@ -108,6 +108,14 @@ Always:
 
 
 async def entrypoint(ctx: agents.JobContext):
+    await ctx.connect()
+    participant = await ctx.wait_for_participant()
+    role = participant.attributes.get("role", ROLE)
+    interview_type = participant.attributes.get("interview_type", INTERVIEW_TYPE)
+    if interview_type not in QUESTION_BANK:
+        interview_type = INTERVIEW_TYPE
+    print(f"Interview starting: {role} / {interview_type}")
+
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=groq.LLM(model="openai/gpt-oss-20b"),
@@ -138,10 +146,10 @@ async def entrypoint(ctx: agents.JobContext):
 
     ctx.add_shutdown_callback(save_transcript)
 
-    questions = QUESTION_BANK[INTERVIEW_TYPE]
+    questions = QUESTION_BANK[interview_type]
     await session.start(
         room=ctx.room,
-        agent=Interviewer(ROLE, INTERVIEW_TYPE, questions),
+        agent=Interviewer(role, interview_type, questions),
     )
     await session.generate_reply(
         instructions=(
