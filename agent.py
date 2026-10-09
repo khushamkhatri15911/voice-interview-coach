@@ -2,8 +2,8 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
-from db import save_interview
-
+from db import pop_context, save_interview
+from questions import generate_questions
 from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import Agent, AgentSession, ChatContext, ChatMessage, StopResponse
@@ -113,6 +113,7 @@ async def entrypoint(ctx: agents.JobContext):
     participant = await ctx.wait_for_participant()
     role = participant.attributes.get("role", ROLE)
     interview_type = participant.attributes.get("interview_type", INTERVIEW_TYPE)
+    client_id = participant.attributes.get("client_id")
     if interview_type not in QUESTION_BANK:
         interview_type = INTERVIEW_TYPE
     print(f"Interview starting: {role} / {interview_type}")
@@ -138,6 +139,7 @@ async def entrypoint(ctx: agents.JobContext):
                 await asyncio.to_thread(
                     save_interview,
                     room_name=room_name,
+                    client_id=client_id,
                     role=role,
                     interview_type=interview_type,
                     transcript=history,
@@ -177,7 +179,24 @@ async def entrypoint(ctx: agents.JobContext):
 
     ctx.add_shutdown_callback(save_transcript)
 
+    # Standard questions, unless the candidate gave a resume and/or job description
     questions = QUESTION_BANK[interview_type]
+    context_id = participant.attributes.get("context_id")
+    if context_id:
+        try:
+            saved = await asyncio.to_thread(pop_context, context_id)
+            if saved:
+                questions = await asyncio.to_thread(
+                    generate_questions,
+                    role,
+                    interview_type,
+                    saved["resume_text"],
+                    saved["job_description"],
+                )
+                print(f"Generated {len(questions)} tailored questions")
+        except Exception as e:
+            print(f"Could not make tailored questions, using the standard ones: {e}")
+
     await session.start(
         room=ctx.room,
         agent=Interviewer(role, interview_type, questions),
@@ -189,7 +208,6 @@ async def entrypoint(ctx: agents.JobContext):
             f'"{questions[0]}"'
         )
     )
-
 
 if __name__ == "__main__":
     agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))

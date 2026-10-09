@@ -1,8 +1,9 @@
 import os
+import uuid
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from sqlalchemy import DateTime, Integer, String, create_engine, select
+from sqlalchemy import DateTime, Integer, String, Text, create_engine, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
@@ -42,6 +43,16 @@ class Interview(Base):
     error: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
 
+class InterviewContext(Base):
+    __tablename__ = "interview_contexts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resume_text: Mapped[str] = mapped_column(Text, default="")
+    job_description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
 
@@ -60,8 +71,56 @@ def get_report_payload(room_name: str) -> dict | None:
         if row.status == "scored":
             return row.report
         return {"error": row.error or "Could not score this interview."}
+    
+def get_history(client_id: str) -> list[dict]:
+    with Session(engine) as session:
+        rows = session.scalars(
+            select(Interview)
+            .where(Interview.client_id == client_id)
+            .order_by(Interview.created_at.asc())
+            .limit(100)
+        ).all()
+        return [
+            {
+                "room_name": r.room_name,
+                "role": r.role,
+                "interview_type": r.interview_type,
+                "created_at": r.created_at.isoformat(),
+                "status": r.status,
+                "overall_score": r.overall_score,
+                "clarity": r.clarity,
+                "structure": r.structure,
+                "specificity": r.specificity,
+                "technical_depth": r.technical_depth,
+            }
+            for r in rows
+        ]
 
 
+
+def save_context(resume_text: str, job_description: str) -> str:
+    context_id = str(uuid.uuid4())
+    with Session(engine) as session:
+        session.add(
+            InterviewContext(
+                id=context_id, resume_text=resume_text, job_description=job_description
+            )
+        )
+        session.commit()
+    return context_id
+
+
+def pop_context(context_id: str) -> dict | None:
+    """Read the saved text once, then delete it."""
+    with Session(engine) as session:
+        row = session.get(InterviewContext, context_id)
+        if row is None:
+            return None
+        data = {"resume_text": row.resume_text, "job_description": row.job_description}
+        session.delete(row)
+        session.commit()
+        return data
+    
 if __name__ == "__main__":
     init_db()
     print("Tables are ready.")
