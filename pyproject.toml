@@ -7,7 +7,9 @@ dependencies = [
     "livekit-agents[deepgram,groq,silero]~=1.5",
     "livekit-api>=1.2.1",
     "openai>=2.54.0",
+    "psycopg[binary]>=3.3.6",
     "pydantic>=2.13.5",
     "python-dotenv>=1.2.4",
+    "sqlalchemy>=2.0.54",
     "uvicorn>=0.54.0",
 ]

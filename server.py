@@ -1,6 +1,11 @@
 import os
 import uuid
 
+import json
+import re
+from pathlib import Path
+from db import get_report_payload
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,3 +55,14 @@ def create_token(req: TokenRequest):
         "roomName": room_name,
         "participantToken": token,
     }
+REPORT_DIR = Path(__file__).parent / "reports"
+
+
+@app.get("/report/{room_name}")
+def get_report(room_name: str):
+    if not re.fullmatch(r"interview-[0-9a-f]{8}", room_name):
+        raise HTTPException(status_code=400, detail="Invalid room name")
+    payload = get_report_payload(room_name)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Report not ready yet")
+    return payload

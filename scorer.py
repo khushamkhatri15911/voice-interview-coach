@@ -64,10 +64,10 @@ Reply with ONLY a JSON object matching this schema, and nothing else:
 def pick_transcript() -> Path:
     if len(sys.argv) > 1:
         return Path(sys.argv[1])
-    files = sorted(TRANSCRIPT_DIR.glob("transcript_*.json"))
+    files = list(TRANSCRIPT_DIR.glob("transcript_*.json"))
     if not files:
         sys.exit("No transcripts found. Run an interview first.")
-    return files[-1]
+    return max(files, key=lambda p: p.stat().st_mtime)
 
 
 def transcript_to_text(path: Path) -> str:

@@ -13,7 +13,7 @@ body {
 }
 #root {
   width: 100%;
-  max-width: 460px;
+  max-width: 720px;
   padding: 24px;
   box-sizing: border-box;
 }
@@ -83,3 +83,21 @@ input[type="text"] {
 }
 .status { font-size: 1.1rem; font-weight: 600; }
 .meta { color: #9aa0b4; font-size: 0.9rem; margin-top: 4px; }
+
+
+.narrow { max-width: 460px; margin: 0 auto; }
+.wide { text-align: left; }
+.wide h1 { text-align: center; }
+.wide h2 { font-size: 1.05rem; margin: 26px 0 8px; color: #9aa0b4; }
+.wide ul { margin: 0; padding-left: 20px; line-height: 1.6; }
+.overall { text-align: center; font-size: 3.4rem; font-weight: 700; margin: 8px 0 18px; }
+.overall span { font-size: 1.2rem; color: #9aa0b4; font-weight: 500; }
+.bar-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.bar-label { width: 120px; font-size: 0.9rem; color: #9aa0b4; }
+.bar-track { flex: 1; height: 10px; background: #0f1117; border-radius: 6px; overflow: hidden; }
+.bar-fill { height: 100%; background: #5b8cff; border-radius: 6px; }
+.bar-value { width: 24px; text-align: right; font-weight: 600; }
+.qcard { background: #0f1117; border: 1px solid #2a2e3b; border-radius: 12px; padding: 14px 16px; margin: 10px 0; }
+.qtitle { font-weight: 600; margin-bottom: 6px; }
+.qscore { float: right; color: #5b8cff; }
+.qcard p { margin: 6px 0; font-size: 0.93rem; line-height: 1.5; }

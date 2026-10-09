@@ -2,6 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
+from db import save_interview
 
 from dotenv import load_dotenv
 from livekit import agents
@@ -115,6 +116,7 @@ async def entrypoint(ctx: agents.JobContext):
     if interview_type not in QUESTION_BANK:
         interview_type = INTERVIEW_TYPE
     print(f"Interview starting: {role} / {interview_type}")
+    room_name = ctx.room.name
 
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
@@ -124,25 +126,54 @@ async def entrypoint(ctx: agents.JobContext):
     )
 
     async def save_transcript():
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = TRANSCRIPT_DIR / f"transcript_{stamp}.json"
+        path = TRANSCRIPT_DIR / f"transcript_{room_name}.json"
+        out = REPORT_DIR / f"report_{room_name}.json"
+        history = session.history.to_dict()
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(session.history.to_dict(), f, indent=2)
+            json.dump(history, f, indent=2)
         print(f"Transcript saved to {path}")
+
+        async def store(status, **fields):
+            try:
+                await asyncio.to_thread(
+                    save_interview,
+                    room_name=room_name,
+                    role=role,
+                    interview_type=interview_type,
+                    transcript=history,
+                    status=status,
+                    **fields,
+                )
+                print("Saved to database")
+            except Exception as e:
+                print(f"Could not save to database: {e}")
 
         try:
             text = transcript_to_text(path)
             if text.count("Candidate:") < 2:
-                print("Interview too short to score (need at least 2 answers).")
+                msg = "Interview too short to score (you need to answer at least 2 questions)."
+                print(msg)
+                out.write_text(json.dumps({"error": msg}), encoding="utf-8")
+                await store("too_short", error=msg)
                 return
             print("Scoring your interview, please wait...")
             report = await asyncio.to_thread(score, text)
             print_report(report)
-            out = REPORT_DIR / f"report_{stamp}.json"
             out.write_text(report.model_dump_json(indent=2), encoding="utf-8")
-            print(f"Report saved to {out}")
+            await store(
+                "scored",
+                overall_score=report.overall_score,
+                clarity=report.clarity,
+                structure=report.structure,
+                specificity=report.specificity,
+                technical_depth=report.technical_depth,
+                report=report.model_dump(),
+            )
         except Exception as e:
             print(f"Could not score this interview: {e}")
+            msg = "Could not score this interview."
+            out.write_text(json.dumps({"error": msg}), encoding="utf-8")
+            await store("failed", error=msg)
 
     ctx.add_shutdown_callback(save_transcript)
 

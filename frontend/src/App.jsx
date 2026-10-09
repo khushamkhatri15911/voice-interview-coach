@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -19,6 +19,8 @@ export default function App() {
   const [role, setRole] = useState("Junior Data Analyst");
   const [interviewType, setInterviewType] = useState("behavioural");
   const [connection, setConnection] = useState(null);
+  const [roomName, setRoomName] = useState(null);
+  const [phase, setPhase] = useState("setup"); // setup | live | scoring
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,6 +36,8 @@ export default function App() {
       if (!res.ok) throw new Error(`server answered ${res.status}`);
       const data = await res.json();
       setConnection({ serverUrl: data.serverUrl, token: data.participantToken });
+      setRoomName(data.roomName);
+      setPhase("live");
     } catch (e) {
       setError(`Could not start the interview. Is the FastAPI server running? (${e.message})`);
     } finally {
@@ -42,12 +46,22 @@ export default function App() {
   }
 
   function endInterview() {
+    setPhase((p) => (p === "live" ? "scoring" : p));
     setConnection(null);
   }
 
-  if (!connection) {
+  function restart() {
+    setRoomName(null);
+    setPhase("setup");
+  }
+
+  if (phase === "scoring") {
+    return <ScoringScreen roomName={roomName} onRestart={restart} />;
+  }
+
+  if (phase === "setup") {
     return (
-      <div className="card">
+      <div className="card narrow">
         <h1>Voice Interview Coach</h1>
         <p className="sub">Practice a real spoken interview and get scored feedback.</p>
 
@@ -111,7 +125,7 @@ function InterviewScreen({ role, interviewType, onEnd }) {
   const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
 
   return (
-    <div className="card">
+    <div className="card narrow">
       <h1>Interview in progress</h1>
       <p className="meta">
         {role} · {interviewType}
@@ -128,6 +142,128 @@ function InterviewScreen({ role, interviewType, onEnd }) {
       </button>
       <button className="danger" onClick={onEnd}>
         End interview
+      </button>
+    </div>
+  );
+}
+
+function ScoringScreen({ roomName, onRestart }) {
+  const [report, setReport] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      for (let tries = 0; tries < 60 && !cancelled; tries++) {
+        try {
+          const res = await fetch(`${API_URL}/report/${roomName}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (!cancelled) {
+              if (data.error) setError(data.error);
+              else setReport(data);
+            }
+            return;
+          }
+        } catch {
+          // server hiccup, just try again
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!cancelled) setError("The report is taking too long. Check the agent terminal.");
+    }
+
+    poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomName]);
+
+  if (report) return <ReportView report={report} onRestart={onRestart} />;
+
+  if (error) {
+    return (
+      <div className="card narrow">
+        <h1>No report</h1>
+        <p className="sub">{error}</p>
+        <button className="primary" onClick={onRestart}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card narrow">
+      <h1>Scoring your interview</h1>
+      <div className="orb thinking" />
+      <p className="sub">This usually takes 10 to 20 seconds...</p>
+    </div>
+  );
+}
+
+function ReportView({ report, onRestart }) {
+  const scores = [
+    ["Clarity", report.clarity],
+    ["Structure", report.structure],
+    ["Specificity", report.specificity],
+    ["Technical depth", report.technical_depth],
+  ];
+
+  return (
+    <div className="card wide">
+      <h1>Your interview report</h1>
+      <div className="overall">
+        {report.overall_score}
+        <span>/10</span>
+      </div>
+
+      {scores.map(([label, value]) => (
+        <div className="bar-row" key={label}>
+          <span className="bar-label">{label}</span>
+          <div className="bar-track">
+            <div className="bar-fill" style={{ width: `${value * 10}%` }} />
+          </div>
+          <span className="bar-value">{value}</span>
+        </div>
+      ))}
+
+      <h2>Strengths</h2>
+      <ul>
+        {report.strengths.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ul>
+
+      <h2>To improve</h2>
+      <ul>
+        {report.weaknesses.map((w, i) => (
+          <li key={i}>{w}</li>
+        ))}
+      </ul>
+
+      <h2>Question by question</h2>
+      {report.per_question.map((q, i) => (
+        <div className="qcard" key={i}>
+          <div className="qtitle">
+            {q.question} <span className="qscore">{q.score}/10</span>
+          </div>
+          <p><b>Good:</b> {q.what_was_good}</p>
+          <p><b>Improve:</b> {q.what_to_improve}</p>
+          <p><b>Tip:</b> {q.better_answer_tip}</p>
+        </div>
+      ))}
+
+      <h2>Next steps</h2>
+      <ul>
+        {report.next_steps.map((n, i) => (
+          <li key={i}>{n}</li>
+        ))}
+      </ul>
+
+      <button className="primary" onClick={onRestart}>
+        Practice again
       </button>
     </div>
   );
