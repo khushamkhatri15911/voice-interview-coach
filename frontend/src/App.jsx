@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -6,8 +6,9 @@ import {
   useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-
-const API_URL = "http://localhost:8000";
+import { API_URL, getClientId } from "./api";
+import { ReportLoader } from "./Report.jsx";
+import HistoryScreen from "./History.jsx";
 
 const INTERVIEW_TYPES = [
   { value: "behavioural", label: "Behavioural" },
@@ -20,7 +21,8 @@ export default function App() {
   const [interviewType, setInterviewType] = useState("behavioural");
   const [connection, setConnection] = useState(null);
   const [roomName, setRoomName] = useState(null);
-  const [phase, setPhase] = useState("setup"); // setup | live | scoring
+  const [pastRoom, setPastRoom] = useState(null);
+  const [phase, setPhase] = useState("setup"); // setup | live | scoring | history | past
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,7 +33,11 @@ export default function App() {
       const res = await fetch(`${API_URL}/token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, interview_type: interviewType }),
+        body: JSON.stringify({
+          role,
+          interview_type: interviewType,
+          client_id: getClientId(),
+        }),
       });
       if (!res.ok) throw new Error(`server answered ${res.status}`);
       const data = await res.json();
@@ -50,13 +56,36 @@ export default function App() {
     setConnection(null);
   }
 
-  function restart() {
+  function goHome() {
     setRoomName(null);
     setPhase("setup");
   }
 
   if (phase === "scoring") {
-    return <ScoringScreen roomName={roomName} onRestart={restart} />;
+    return <ReportLoader roomName={roomName} onBack={goHome} backLabel="Practice again" fresh />;
+  }
+
+  if (phase === "history") {
+    return (
+      <HistoryScreen
+        onBack={goHome}
+        onOpen={(room) => {
+          setPastRoom(room);
+          setPhase("past");
+        }}
+      />
+    );
+  }
+
+  if (phase === "past") {
+    return (
+      <ReportLoader
+        roomName={pastRoom}
+        onBack={() => setPhase("history")}
+        backLabel="Back to history"
+        fresh={false}
+      />
+    );
   }
 
   if (phase === "setup") {
@@ -89,6 +118,9 @@ export default function App() {
 
         <button className="primary" onClick={startInterview} disabled={loading || !role.trim()}>
           {loading ? "Starting..." : "Start interview"}
+        </button>
+        <button className="secondary" onClick={() => setPhase("history")}>
+          View my progress
         </button>
         {error && <p className="error">{error}</p>}
         <p className="tip">Use headphones so the interviewer doesn't hear itself.</p>
@@ -142,128 +174,6 @@ function InterviewScreen({ role, interviewType, onEnd }) {
       </button>
       <button className="danger" onClick={onEnd}>
         End interview
-      </button>
-    </div>
-  );
-}
-
-function ScoringScreen({ roomName, onRestart }) {
-  const [report, setReport] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      for (let tries = 0; tries < 60 && !cancelled; tries++) {
-        try {
-          const res = await fetch(`${API_URL}/report/${roomName}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (!cancelled) {
-              if (data.error) setError(data.error);
-              else setReport(data);
-            }
-            return;
-          }
-        } catch {
-          // server hiccup, just try again
-        }
-        await new Promise((r) => setTimeout(r, 2000));
-      }
-      if (!cancelled) setError("The report is taking too long. Check the agent terminal.");
-    }
-
-    poll();
-    return () => {
-      cancelled = true;
-    };
-  }, [roomName]);
-
-  if (report) return <ReportView report={report} onRestart={onRestart} />;
-
-  if (error) {
-    return (
-      <div className="card narrow">
-        <h1>No report</h1>
-        <p className="sub">{error}</p>
-        <button className="primary" onClick={onRestart}>
-          Try again
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="card narrow">
-      <h1>Scoring your interview</h1>
-      <div className="orb thinking" />
-      <p className="sub">This usually takes 10 to 20 seconds...</p>
-    </div>
-  );
-}
-
-function ReportView({ report, onRestart }) {
-  const scores = [
-    ["Clarity", report.clarity],
-    ["Structure", report.structure],
-    ["Specificity", report.specificity],
-    ["Technical depth", report.technical_depth],
-  ];
-
-  return (
-    <div className="card wide">
-      <h1>Your interview report</h1>
-      <div className="overall">
-        {report.overall_score}
-        <span>/10</span>
-      </div>
-
-      {scores.map(([label, value]) => (
-        <div className="bar-row" key={label}>
-          <span className="bar-label">{label}</span>
-          <div className="bar-track">
-            <div className="bar-fill" style={{ width: `${value * 10}%` }} />
-          </div>
-          <span className="bar-value">{value}</span>
-        </div>
-      ))}
-
-      <h2>Strengths</h2>
-      <ul>
-        {report.strengths.map((s, i) => (
-          <li key={i}>{s}</li>
-        ))}
-      </ul>
-
-      <h2>To improve</h2>
-      <ul>
-        {report.weaknesses.map((w, i) => (
-          <li key={i}>{w}</li>
-        ))}
-      </ul>
-
-      <h2>Question by question</h2>
-      {report.per_question.map((q, i) => (
-        <div className="qcard" key={i}>
-          <div className="qtitle">
-            {q.question} <span className="qscore">{q.score}/10</span>
-          </div>
-          <p><b>Good:</b> {q.what_was_good}</p>
-          <p><b>Improve:</b> {q.what_to_improve}</p>
-          <p><b>Tip:</b> {q.better_answer_tip}</p>
-        </div>
-      ))}
-
-      <h2>Next steps</h2>
-      <ul>
-        {report.next_steps.map((n, i) => (
-          <li key={i}>{n}</li>
-        ))}
-      </ul>
-
-      <button className="primary" onClick={onRestart}>
-        Practice again
       </button>
     </div>
   );
