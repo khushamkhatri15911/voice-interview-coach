@@ -127,3 +127,21 @@ input[type="text"] {
 .hrow:disabled { opacity: 0.55; cursor: default; }
 .hrow small { color: #9aa0b4; }
 .badge { font-weight: 700; color: #5b8cff; }
+
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid #2a2e3b;
+  background: #0f1117;
+  color: inherit;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+}
+input[type="file"] { width: 100%; font-size: 0.9rem; color: #9aa0b4; }
+.tailor { margin-top: 18px; text-align: left; border: 1px solid #2a2e3b; border-radius: 12px; padding: 12px 14px; }
+.tailor summary { cursor: pointer; color: #5b8cff; font-size: 0.95rem; }
+.file-note { color: #9aa0b4; font-size: 0.85rem; margin: 8px 0 0; }

@@ -25,6 +25,9 @@ export default function App() {
   const [phase, setPhase] = useState("setup"); // setup | live | scoring | history | past
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resumeText, setResumeText] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [fileNote, setFileNote] = useState("");
 
   async function startInterview() {
     setLoading(true);
@@ -37,6 +40,8 @@ export default function App() {
           role,
           interview_type: interviewType,
           client_id: getClientId(),
+          resume_text: resumeText,
+          job_description: jobDescription,
         }),
       });
       if (!res.ok) throw new Error(`server answered ${res.status}`);
@@ -48,6 +53,23 @@ export default function App() {
       setError(`Could not start the interview. Is the FastAPI server running? (${e.message})`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResumeFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileNote("Reading file...");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${API_URL}/extract-resume`, { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || `server answered ${res.status}`);
+      setResumeText(data.text);
+      setFileNote(`Loaded ${file.name} (${data.text.length} characters). You can edit the text below.`);
+    } catch (err) {
+      setFileNote(`Could not read the file: ${err.message}`);
     }
   }
 
@@ -115,6 +137,38 @@ export default function App() {
             </button>
           ))}
         </div>
+
+        <details className="tailor">
+          <summary>Tailor the questions to my resume and a job posting (optional)</summary>
+
+          <label htmlFor="resume-file">Upload resume (PDF or TXT)</label>
+          <input id="resume-file" type="file" accept=".pdf,.txt" onChange={handleResumeFile} />
+          {fileNote && <p className="file-note">{fileNote}</p>}
+
+          <label htmlFor="resume-text">Resume text</label>
+          <textarea
+            id="resume-text"
+            rows={6}
+            value={resumeText}
+            maxLength={20000}
+            onChange={(e) => setResumeText(e.target.value)}
+            placeholder="Upload a file above, or paste your resume text here"
+          />
+
+          <label htmlFor="job-desc">Job description</label>
+          <textarea
+            id="job-desc"
+            rows={6}
+            value={jobDescription}
+            maxLength={20000}
+            onChange={(e) => setJobDescription(e.target.value)}
+            placeholder="Paste the job posting here"
+          />
+          <p className="tip">
+            Remove phone numbers and addresses first. Your text is used only to write the
+            questions and is deleted from the database when the interview starts.
+          </p>
+        </details>
 
         <button className="primary" onClick={startInterview} disabled={loading || !role.trim()}>
           {loading ? "Starting..." : "Start interview"}
