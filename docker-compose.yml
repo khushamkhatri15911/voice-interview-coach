@@ -1,15 +1,14 @@
 services:
   api:
-    build: .
-    image: voice-coach-backend
-    command: uvicorn server:app --host 0.0.0.0 --port 8000
+    build:
+      context: .
+      dockerfile: Dockerfile.api
     env_file: .env
     ports:
       - "8000:8000"
     restart: unless-stopped
 
   agent:
-    image: voice-coach-backend
-    command: python agent.py start
+    build: .
     env_file: .env
     restart: unless-stopped
