@@ -9,7 +9,6 @@ from livekit import agents
 from livekit.agents import Agent, AgentSession, ChatContext, ChatMessage, StopResponse
 from livekit.plugins import deepgram, groq, silero
 from scorer import REPORT_DIR, print_report, score, transcript_to_text
-
 load_dotenv()
 
 # ---- Interview settings (we will make these selectable in the web app later) ----

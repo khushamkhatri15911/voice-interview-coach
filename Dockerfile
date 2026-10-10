@@ -1,0 +1,27 @@
+FROM python:3.12-slim
+
+# Install uv, the same package tool you use on your computer
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH"
+
+# Install the libraries first (Docker reuses this step if they haven't changed)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project --no-dev
+
+# Then copy our code
+COPY *.py ./
+
+# Run as a normal user, not as root
+RUN useradd --create-home appuser \
+    && mkdir -p /app/transcripts /app/reports \
+    && chown appuser:appuser /app /app/transcripts /app/reports
+USER appuser
+
+EXPOSE 8000
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
