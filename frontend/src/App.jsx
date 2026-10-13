@@ -16,6 +16,14 @@ const INTERVIEW_TYPES = [
   { value: "mixed", label: "Mixed" },
 ];
 
+function loadSavedCode() {
+  try {
+    return localStorage.getItem("vic_access_code") || "";
+  } catch {
+    return "";
+  }
+}
+
 export default function App() {
   const [role, setRole] = useState("Junior Data Analyst");
   const [interviewType, setInterviewType] = useState("behavioural");
@@ -24,14 +32,19 @@ export default function App() {
   const [pastRoom, setPastRoom] = useState(null);
   const [phase, setPhase] = useState("setup"); // setup | live | scoring | history | past
   const [loading, setLoading] = useState(false);
+  const [slowNote, setSlowNote] = useState(false);
   const [error, setError] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [fileNote, setFileNote] = useState("");
+  const [accessCode, setAccessCode] = useState(loadSavedCode);
 
   async function startInterview() {
     setLoading(true);
     setError("");
+    setSlowNote(false);
+    // free servers fall asleep when nobody uses them, so the first request can be slow
+    const timer = setTimeout(() => setSlowNote(true), 4000);
     try {
       const res = await fetch(`${API_URL}/token`, {
         method: "POST",
@@ -42,16 +55,28 @@ export default function App() {
           client_id: getClientId(),
           resume_text: resumeText,
           job_description: jobDescription,
+          access_code: accessCode,
         }),
       });
+      if (res.status === 401) {
+        setError("Wrong access code. Please check it and try again.");
+        return;
+      }
       if (!res.ok) throw new Error(`server answered ${res.status}`);
       const data = await res.json();
+      try {
+        localStorage.setItem("vic_access_code", accessCode);
+      } catch {
+        // saving the code is just a convenience
+      }
       setConnection({ serverUrl: data.serverUrl, token: data.participantToken });
       setRoomName(data.roomName);
       setPhase("live");
     } catch (e) {
-      setError(`Could not start the interview. Is the FastAPI server running? (${e.message})`);
+      setError(`Could not start the interview. Is the server running? (${e.message})`);
     } finally {
+      clearTimeout(timer);
+      setSlowNote(false);
       setLoading(false);
     }
   }
@@ -170,9 +195,24 @@ export default function App() {
           </p>
         </details>
 
+        <label htmlFor="access-code">Access code</label>
+        <input
+          id="access-code"
+          type="password"
+          value={accessCode}
+          maxLength={100}
+          onChange={(e) => setAccessCode(e.target.value)}
+          placeholder="Needed for the live demo (leave empty when running locally)"
+        />
+
         <button className="primary" onClick={startInterview} disabled={loading || !role.trim()}>
           {loading ? "Starting..." : "Start interview"}
         </button>
+        {slowNote && (
+          <p className="tip">
+            The server was asleep and is waking up. This can take up to a minute the first time.
+          </p>
+        )}
         <button className="secondary" onClick={() => setPhase("history")}>
           View my progress
         </button>
