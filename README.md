@@ -70,7 +70,7 @@ flowchart LR
 **Requirements:** Python 3.10+, [uv](https://docs.astral.sh/uv/), Node 20+, and free accounts at LiveKit Cloud, Deepgram, Groq and Neon.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/voice-interview-coach.git
+git clone https://github.com/khushamkhatri15911/voice-interview-coach.git
 cd voice-interview-coach
 cp .env.example .env        # then fill in your keys
 uv sync
