@@ -202,7 +202,7 @@ export default function App() {
           value={accessCode}
           maxLength={100}
           onChange={(e) => setAccessCode(e.target.value)}
-          placeholder="Needed for the live demo (leave empty when running locally)"
+          placeholder="Enter access code"
         />
 
         <button className="primary" onClick={startInterview} disabled={loading || !role.trim()}>
