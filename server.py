@@ -1,3 +1,4 @@
+import hmac
 import io
 import os
 import re
@@ -16,13 +17,21 @@ load_dotenv()
 
 app = FastAPI(title="Voice Interview Coach API")
 
-# Allow our React app (it runs on port 5173) to call this server
+# Websites allowed to call this API (comma-separated list in the ALLOWED_ORIGINS variable)
+origins = [
+    o.strip()
+    for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# If ACCESS_CODE is set, nobody can start an interview without it
+ACCESS_CODE = os.environ.get("ACCESS_CODE", "")
 
 INTERVIEW_TYPES = ("behavioural", "technical", "mixed")
 CLIENT_ID_PATTERN = re.compile(r"[A-Za-z0-9-]{8,64}")
@@ -35,10 +44,21 @@ class TokenRequest(BaseModel):
     client_id: str | None = None
     resume_text: str = Field(default="", max_length=30000)
     job_description: str = Field(default="", max_length=30000)
+    access_code: str = Field(default="", max_length=100)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.post("/token")
 def create_token(req: TokenRequest):
+    if ACCESS_CODE and not hmac.compare_digest(
+        req.access_code.encode(), ACCESS_CODE.encode()
+    ):
+        raise HTTPException(status_code=401, detail="Wrong access code")
+
     if req.interview_type not in INTERVIEW_TYPES:
         raise HTTPException(status_code=400, detail="Invalid interview type")
 

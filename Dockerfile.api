@@ -3,28 +3,20 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv, the same package tool you use on your computer
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
+ENV PYTHONUNBUFFERED=1
 
-ENV PYTHONUNBUFFERED=1 \
-    UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1 \
-    PATH="/app/.venv/bin:$PATH"
+# The API only needs a few libraries (not the heavy voice-agent ones)
+RUN uv pip install --system --no-cache \
+    fastapi uvicorn livekit-api sqlalchemy "psycopg[binary]" \
+    pydantic pypdf python-multipart python-dotenv
 
-# Install the libraries first (Docker reuses this step if they haven't changed)
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-dev
+COPY server.py db.py ./
 
-# Then copy our code
-COPY *.py ./
-
-# Run as a normal user, not as root
-RUN useradd --create-home appuser \
-    && mkdir -p /app/transcripts /app/reports \
-    && chown appuser:appuser /app /app/transcripts /app/reports
+RUN useradd --create-home appuser
 USER appuser
 
 EXPOSE 8000
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]
